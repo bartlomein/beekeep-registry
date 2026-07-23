@@ -116,6 +116,12 @@ nothing until the user confirms **Import**.
 Use `--json` for machine-readable output. Use `--download-only` to omit the
 manual import steps.
 
+After a snapshot has been verified and cached, the CLI sends one best-effort
+anonymous download event containing only the agent slug, version, source
+(`cli`), and timestamp assigned by beekeep.sh. Analytics failure never prevents
+the download. Use `--no-analytics`, set `BEEKEEP_DISABLE_ANALYTICS=1`, or set
+`DO_NOT_TRACK=1` to opt out.
+
 ## Contributing and security
 
 Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a listing pull request.
