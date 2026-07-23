@@ -19,6 +19,7 @@ agents/<publisher>/<agent>.yaml  Approved and suspended listings
 examples/                        Copyable listing examples
 schema/listing.schema.json       Strict v1 metadata contract
 scripts/validate.mjs             Schema, source, hash, and policy validator
+packages/cli/                    Published Beekeep submit/install CLI
 tests/                           Full validator test suite
 ```
 
@@ -67,6 +68,53 @@ The complete validator:
 5. rejects memory, secrets, environment values, commands, and hooks.
 
 Use `npm run validate:offline` when editing metadata without network access.
+
+## Submit an agent
+
+Creators only need to:
+
+1. Export a config-only `.agent.json` snapshot from Buzz Desktop with memory
+   set to **None**.
+2. Commit and push the snapshot plus a short README to a public GitHub
+   repository.
+3. In that repository, run:
+
+   ```bash
+   npx @beekeep-sh/cli submit ./path/to/my-agent.agent.json
+   ```
+
+The CLI asks for the agent name, purpose, category, version, and license. It
+then verifies the committed and pushed snapshot and opens a pre-filled GitHub
+submission page. Confirm the four safety statements and click
+**Submit new issue**.
+
+That is the complete creator flow. You do not need to clone this registry,
+write YAML, or calculate hashes. Node.js 22 or newer is required. If the CLI
+cannot open a browser, it prints the submission URL. The
+[submission form](https://github.com/bartlomein/beekeep-registry/issues/new?template=agent-submission.yml)
+also remains available for manual use.
+
+Beekeep maintainers resolve the exact source commit and path, calculate the
+byte size and SHA-256 digest, run the safety validator, and review the system
+prompt, tools, permissions, and source history. Merging the resulting registry
+pull request publishes the listing.
+
+## Install an approved agent
+
+The Beekeep CLI is developed in this repository and will be published as
+`@beekeep-sh/cli`:
+
+```bash
+npx @beekeep-sh/cli add publisher/agent
+```
+
+`add` downloads and verifies the approved snapshot, then asks Buzz Desktop to
+show its normal import preview. Buzz creates nothing until the user confirms
+**Import**.
+
+The automatic preview requires a Buzz build that supports
+`buzz agents import --file <snapshot>`. Use `--download-only` to verify and
+cache a snapshot without opening Buzz.
 
 ## Contributing and security
 

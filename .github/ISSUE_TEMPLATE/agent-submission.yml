@@ -1,0 +1,100 @@
+name: Submit an agent
+description: Submit a Buzz agent snapshot for Beekeep review
+title: "[Agent submission]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Export a config-only `.agent.json` snapshot from Buzz Desktop with memory set to **None**, then commit and push it to a public GitHub repository.
+
+        The Beekeep CLI normally opens this page with the listing details pre-filled. Review every field and complete the safety confirmation. For a manual submission, paste the GitHub URL for the file and fill in the remaining fields.
+
+        Beekeep maintainers will pin the exact commit, calculate the immutable fields, validate the snapshot, and prepare the registry pull request.
+
+  - type: dropdown
+    id: request-type
+    attributes:
+      label: Request type
+      options:
+        - New agent
+        - Update an existing listing
+    validations:
+      required: true
+
+  - type: input
+    id: snapshot-url
+    attributes:
+      label: Snapshot URL
+      description: Link to the `.agent.json` file in its public GitHub repository.
+      placeholder: https://github.com/owner/repository/blob/main/path/my-agent.agent.json
+    validations:
+      required: true
+
+  - type: input
+    id: agent-name
+    attributes:
+      label: Agent name
+      placeholder: Research Brief
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: What does the agent do?
+      description: Describe its day-to-day purpose, intended users, and important limits.
+      placeholder: This agent researches a focused question and returns a concise brief with direct source links.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: Category
+      options:
+        - Research
+        - Marketing
+        - Engineering
+        - Operations
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Use semantic versioning. First submissions normally use 1.0.0.
+      placeholder: 1.0.0
+    validations:
+      required: true
+
+  - type: input
+    id: license
+    attributes:
+      label: License
+      description: Enter the SPDX license identifier shown in the source repository.
+      placeholder: MIT
+    validations:
+      required: true
+
+  - type: textarea
+    id: changes
+    attributes:
+      label: What changed?
+      description: Required for an update. List changes to the prompt, tools, permissions, response scope, memory, or runtime.
+      placeholder: Leave blank for a new agent.
+
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety confirmation
+      options:
+        - label: The snapshot is config-only and its memory setting is None.
+          required: true
+        - label: The snapshot contains no private keys, authentication tags, tokens, passwords, credentials, or non-empty environment values.
+          required: true
+        - label: The snapshot contains no executable commands, startup configuration, or hooks.
+          required: true
+        - label: I have permission to publish this snapshot and license it as stated above.
+          required: true

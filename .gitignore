@@ -1,3 +1,5 @@
 node_modules/
+packages/cli/dist/
+packages/cli/LICENSE
 .DS_Store
 npm-debug.log*

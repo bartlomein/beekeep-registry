@@ -1,19 +1,13 @@
 import { createHash } from "node:crypto";
-import { readFile, readdir } from "node:fs/promises";
+import { readdir } from "node:fs/promises";
 import path from "node:path";
 
 import Ajv2020 from "ajv/dist/2020.js";
 import addFormats from "ajv-formats";
 import { parseDocument } from "yaml";
+import schema from "../../schema/listing.schema.json" with { type: "json" };
 
 export const MAX_SNAPSHOT_BYTES = 2 * 1024 * 1024;
-
-const schema = JSON.parse(
-  await readFile(
-    new URL("../../schema/listing.schema.json", import.meta.url),
-    "utf8",
-  ),
-);
 
 const ajv = new Ajv2020({
   allErrors: true,
@@ -397,7 +391,7 @@ async function readLimitedBody(response, maximumBytes) {
   return Buffer.concat(chunks, total);
 }
 
-export async function validateRemoteSnapshot(
+export async function downloadRemoteSnapshot(
   listing,
   { fetchImpl = globalThis.fetch } = {},
 ) {
@@ -439,11 +433,19 @@ export async function validateRemoteSnapshot(
   }
 
   return {
-    url,
-    size_bytes: bytes.length,
-    sha256,
-    ...inspectSnapshot(snapshot),
+    bytes,
+    report: {
+      url,
+      size_bytes: bytes.length,
+      sha256,
+      ...inspectSnapshot(snapshot),
+    },
   };
+}
+
+export async function validateRemoteSnapshot(listing, options = {}) {
+  const { report } = await downloadRemoteSnapshot(listing, options);
+  return report;
 }
 
 export async function findListingFiles(rootDirectory) {
