@@ -1,6 +1,6 @@
 {
   "name": "@beekeep-sh/cli",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Submit and install reviewed Buzz agents from beekeep.sh",
   "type": "module",
   "license": "MIT",
