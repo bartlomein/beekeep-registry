@@ -1,7 +1,14 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import {
+  mkdtemp,
+  mkdir,
+  readFile,
+  rm,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -369,4 +376,26 @@ test("run returns bounded help and rejects an invalid slug", async () => {
   const help = await run(["--help"]);
   assert.match(help.help, /beekeep add/);
   await assert.rejects(run(["add", "../bad"]), /invalid agent slug/);
+});
+
+test("built CLI runs through an npm-style bin symlink", async (t) => {
+  const packageDirectory = path.resolve(import.meta.dirname, "..");
+  const build = spawnSync(
+    process.execPath,
+    [path.join(packageDirectory, "scripts", "build.mjs")],
+    { encoding: "utf8" },
+  );
+  assert.equal(build.status, 0, build.stderr);
+
+  const root = await mkdtemp(path.join(os.tmpdir(), "beekeep-cli-bin-test-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const executable = path.join(root, "beekeep");
+  await symlink(
+    path.join(packageDirectory, "dist", "beekeep.mjs"),
+    executable,
+  );
+
+  const result = spawnSync(executable, ["--version"], { encoding: "utf8" });
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stdout.trim(), "0.1.1");
 });

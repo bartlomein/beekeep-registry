@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
+import { realpathSync } from "node:fs";
 import {
   access,
   mkdir,
@@ -739,7 +740,7 @@ export async function run(argv = process.argv.slice(2), dependencies = {}) {
     return { help: HELP };
   }
   if (["--version", "-V"].includes(command)) {
-    return { text: "0.1.0" };
+    return { text: "0.1.1" };
   }
   if (command === "add") {
     return commandAdd(args, dependencies);
@@ -773,9 +774,10 @@ async function main() {
   }
 }
 
-if (
-  process.argv[1] &&
-  import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href
-) {
+const invokedModuleUrl = process.argv[1]
+  ? pathToFileURL(realpathSync(process.argv[1])).href
+  : null;
+
+if (import.meta.url === invokedModuleUrl) {
   await main();
 }
