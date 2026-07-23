@@ -108,12 +108,13 @@ The Beekeep CLI is developed in this repository and will be published as
 npx @beekeep-sh/cli add publisher/agent
 ```
 
-`add` downloads and verifies the approved snapshot, opens Buzz Desktop, and
-prints the exact local file path. In Buzz, choose **New agent**, then
-**Import agent snapshot**, and select that file. Buzz shows its normal preview
-and creates nothing until the user confirms **Import**.
+`add` downloads and verifies the approved snapshot, then prints the exact local
+file path and numbered manual import steps. It does not open Buzz until the app
+supports a direct auto-import handoff. Buzz shows its normal preview and creates
+nothing until the user confirms **Import**.
 
-Use `--download-only` to verify and cache a snapshot without opening Buzz.
+Use `--json` for machine-readable output. Use `--download-only` to omit the
+manual import steps.
 
 ## Contributing and security
 

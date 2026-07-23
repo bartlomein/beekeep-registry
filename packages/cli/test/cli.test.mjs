@@ -17,7 +17,7 @@ import { parse, stringify } from "yaml";
 
 import {
   finalizeListing,
-  openBuzzDesktop,
+  formatCliResult,
   openSubmissionPage,
   resolveApprovedAgent,
   run,
@@ -144,27 +144,7 @@ test("resolveApprovedAgent rejects suspended listings", async () => {
   );
 });
 
-test("openBuzzDesktop launches the installed macOS app without a shell", () => {
-  let invocation;
-  const result = openBuzzDesktop({
-    platform: "darwin",
-    spawnImpl(command, args, options) {
-      invocation = { command, args, options };
-      return {
-        status: 0,
-        stdout: "",
-        stderr: "",
-      };
-    },
-  });
-
-  assert.equal(invocation.command, "open");
-  assert.deepEqual(invocation.args, ["-a", "Buzz"]);
-  assert.equal(invocation.options.encoding, "utf8");
-  assert.equal(result.opened, true);
-});
-
-test("add verifies and caches the snapshot before opening Buzz", async (t) => {
+test("add verifies and caches the snapshot without opening Buzz", async (t) => {
   const sha256 = createHash("sha256").update(snapshotBytes).digest("hex");
   const listing = {
     ...structuredClone(validDraft),
@@ -178,7 +158,7 @@ test("add verifies and caches the snapshot before opening Buzz", async (t) => {
       size_bytes: snapshotBytes.length,
     },
   };
-  let invocation;
+  let spawnCalled = false;
   const result = await run(["add", "alice/test-agent"], {
     baseUrl: "https://registry.example/main",
     fetchImpl: async (url) =>
@@ -186,19 +166,32 @@ test("add verifies and caches the snapshot before opening Buzz", async (t) => {
         ? response(stringify(listing))
         : response(snapshotBytes),
     platform: "darwin",
-    spawnImpl(command, args) {
-      invocation = { command, args };
+    spawnImpl() {
+      spawnCalled = true;
       return { status: 0, stdout: "", stderr: "" };
     },
   });
   t.after(() => rm(result.cachedFile, { force: true }));
 
-  assert.equal(invocation.command, "open");
-  assert.deepEqual(invocation.args, ["-a", "Buzz"]);
-  assert.equal(result.buzz.opened, true);
+  assert.equal(spawnCalled, false);
+  assert.equal(result.buzz, undefined);
   assert.equal(result.manualImportRequired, true);
-  assert.match(result.message, /Import agent snapshot/);
+  assert.match(result.message, /numbered steps/);
   assert.deepEqual(await readFile(result.cachedFile), snapshotBytes);
+
+  const humanOutput = formatCliResult(result, { platform: "darwin" });
+  assert.match(
+    humanOutput,
+    /^Downloaded and verified alice\/test-agent v1\.0\.0\./,
+  );
+  assert.ok(humanOutput.includes(result.cachedFile));
+  assert.match(humanOutput, /1\. Open Buzz\./);
+  assert.match(humanOutput, /3\. Choose Import agent snapshot\./);
+  assert.match(humanOutput, /Command\+Shift\+G/);
+  assert.doesNotMatch(humanOutput, /^\{/);
+
+  const jsonOutput = formatCliResult(result, { json: true });
+  assert.deepEqual(JSON.parse(jsonOutput), result);
 });
 
 test("openSubmissionPage passes the review URL without shell interpolation", () => {
@@ -375,6 +368,7 @@ test("interactive submit validates the pushed snapshot and pre-fills review", as
 test("run returns bounded help and rejects an invalid slug", async () => {
   const help = await run(["--help"]);
   assert.match(help.help, /beekeep add/);
+  assert.match(help.help, /--json/);
   await assert.rejects(run(["add", "../bad"]), /invalid agent slug/);
 });
 
@@ -397,5 +391,5 @@ test("built CLI runs through an npm-style bin symlink", async (t) => {
 
   const result = spawnSync(executable, ["--version"], { encoding: "utf8" });
   assert.equal(result.status, 0, result.stderr);
-  assert.equal(result.stdout.trim(), "0.1.1");
+  assert.equal(result.stdout.trim(), "0.1.2");
 });

@@ -44,16 +44,17 @@ const LICENSE_PATTERN = /^[A-Za-z0-9][A-Za-z0-9.+() -]*$/;
 const HELP = `beekeep — submit and install reviewed Buzz agents
 
 Usage:
-  beekeep add <publisher/agent> [--download-only]
+  beekeep add <publisher/agent> [--json] [--download-only]
   beekeep submit <snapshot.agent.json>
   beekeep submit <snapshot.agent.json> --listing <draft.yaml> [--registry <dir>]
 
 Commands:
-  add       Download and verify an approved listing, then open Buzz for import
+  add       Download and verify an approved listing for manual Buzz import
   submit    Validate a committed snapshot and open a pre-filled review request
 
 Add options:
-  --download-only              Verify and cache the snapshot without opening Buzz
+  --json                       Print machine-readable JSON instead of import steps
+  --download-only              Verify and cache without printing import steps
   --registry-base-url <url>    Registry raw-content base URL
 
 Submit options:
@@ -189,40 +190,16 @@ export async function cacheVerifiedSnapshot(slug, sha256, bytes) {
   return filePath;
 }
 
-export function openBuzzDesktop(
-  { platform = process.platform, spawnImpl = spawnSync } = {},
-) {
-  const invocation =
-    platform === "darwin"
-      ? ["open", ["-a", "Buzz"]]
-      : platform === "win32"
-        ? ["cmd.exe", ["/d", "/s", "/c", "start", "", "Buzz"]]
-        : ["gtk-launch", ["xyz.block.buzz.app"]];
-  const result = spawnImpl(invocation[0], invocation[1], {
-    encoding: "utf8",
-    maxBuffer: 1024 * 1024,
-  });
-  if (result.error || result.status !== 0) {
-    return {
-      opened: false,
-      error:
-        result.error?.message ||
-        (result.stderr || result.stdout || "Buzz launch command failed").trim(),
-    };
-  }
-  return { opened: true };
-}
-
 async function commandAdd(args, dependencies = {}) {
   const { positionals, flags } = parseFlags(
     args,
-    new Set(["--download-only"]),
+    new Set(["--download-only", "--json"]),
   );
   if (positionals.length !== 1) {
     fail("add requires exactly one publisher/agent slug");
   }
   for (const flag of flags.keys()) {
-    if (!["--download-only", "--registry-base-url"].includes(flag)) {
+    if (!["--download-only", "--json", "--registry-base-url"].includes(flag)) {
       fail(`unknown add option: ${flag}`);
     }
   }
@@ -242,12 +219,6 @@ async function commandAdd(args, dependencies = {}) {
     resolved.bytes,
   );
   const downloadOnly = flags.has("--download-only");
-  const buzz = downloadOnly
-    ? null
-    : openBuzzDesktop({
-        platform: dependencies.platform ?? process.platform,
-        spawnImpl: dependencies.spawnImpl ?? spawnSync,
-      });
 
   return {
     ok: true,
@@ -257,14 +228,11 @@ async function commandAdd(args, dependencies = {}) {
     sha256: resolved.report.sha256,
     sizeBytes: resolved.report.size_bytes,
     cachedFile: filePath,
-    buzz,
     importConfirmed: false,
     manualImportRequired: !downloadOnly,
     message: downloadOnly
-      ? "Verified snapshot downloaded. Buzz was not opened."
-      : buzz.opened
-        ? `Verified snapshot downloaded to ${filePath}. Buzz was opened. Choose New agent, then Import agent snapshot, and select this file.`
-        : `Verified snapshot downloaded to ${filePath}. Open Buzz, choose New agent, then Import agent snapshot, and select this file.`,
+      ? "Verified snapshot downloaded."
+      : "Verified snapshot downloaded. Follow the numbered steps to import it into Buzz.",
   };
 }
 
@@ -740,7 +708,7 @@ export async function run(argv = process.argv.slice(2), dependencies = {}) {
     return { help: HELP };
   }
   if (["--version", "-V"].includes(command)) {
-    return { text: "0.1.1" };
+    return { text: "0.1.2" };
   }
   if (command === "add") {
     return commandAdd(args, dependencies);
@@ -751,18 +719,56 @@ export async function run(argv = process.argv.slice(2), dependencies = {}) {
   fail(`unknown command: ${command}`);
 }
 
+export function formatCliResult(
+  result,
+  { json = false, platform = process.platform } = {},
+) {
+  if (result.help) {
+    return result.help;
+  }
+  if (result.text) {
+    return `${result.text}\n`;
+  }
+  if (json) {
+    return `${JSON.stringify(result)}\n`;
+  }
+  if (result.action === "add") {
+    const lines = [
+      `Downloaded and verified ${result.slug} v${result.version}.`,
+      "",
+      "Snapshot file:",
+      result.cachedFile,
+    ];
+    if (result.manualImportRequired) {
+      lines.push(
+        "",
+        "Import into Buzz:",
+        "1. Open Buzz.",
+        "2. Choose New agent.",
+        "3. Choose Import agent snapshot.",
+        platform === "darwin"
+          ? "4. In the file picker, press Command+Shift+G, paste the file path above, then press Return."
+          : "4. Enter the file path shown above in the file picker.",
+        "5. Review the snapshot, then choose Import.",
+      );
+    }
+    return `${lines.join("\n")}\n`;
+  }
+  if (result.submissionUrl) {
+    return `${result.message}\n${result.submissionUrl}\n`;
+  }
+  return `${JSON.stringify(result)}\n`;
+}
+
 async function main() {
   try {
-    const result = await run();
-    if (result.help) {
-      process.stdout.write(result.help);
-    } else if (result.text) {
-      process.stdout.write(`${result.text}\n`);
-    } else if (result.submissionUrl) {
-      process.stdout.write(`${result.message}\n${result.submissionUrl}\n`);
-    } else {
-      process.stdout.write(`${JSON.stringify(result)}\n`);
-    }
+    const argv = process.argv.slice(2);
+    const result = await run(argv);
+    process.stdout.write(
+      formatCliResult(result, {
+        json: argv[0] === "add" && argv.includes("--json"),
+      }),
+    );
   } catch (error) {
     process.stderr.write(
       `${JSON.stringify({
