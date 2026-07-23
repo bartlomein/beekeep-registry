@@ -1,0 +1,24 @@
+schema_version: 1
+slug: bartlomein/honey-passer
+name: Honey Passer
+summary: Passes honey in response to every request.
+description: >-
+  Responds to every request with the same short phrase: "i pass the honey".
+category: operations
+tags:
+  - honey
+author:
+  name: bartlomein
+  url: https://github.com/bartlomein
+version: 1.0.0
+license: MIT
+homepage: https://github.com/bartlomein/honey-passer
+source:
+  repository: https://github.com/bartlomein/honey-passer
+  commit: e23456ba79eb14de137cab0c9eae7e3d055289e0
+  path: honey-passer.agent.json
+snapshot:
+  sha256: 4494cba2a320776959dc48a7e5d2d3fd8a69670a67559c17a9f2ef662db689dd
+  size_bytes: 455
+status: approved
+published_at: 2026-07-23
