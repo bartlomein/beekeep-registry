@@ -1,0 +1,158 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://beekeep.sh/schemas/listing-v1.json",
+  "title": "Beekeep agent listing",
+  "description": "Metadata for one reviewed Buzz agent snapshot.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "slug",
+    "name",
+    "summary",
+    "description",
+    "category",
+    "author",
+    "version",
+    "license",
+    "source",
+    "snapshot",
+    "status"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "slug": {
+      "type": "string",
+      "description": "Lowercase publisher and agent identifier.",
+      "pattern": "^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?/[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80
+    },
+    "summary": {
+      "type": "string",
+      "minLength": 10,
+      "maxLength": 160
+    },
+    "description": {
+      "type": "string",
+      "minLength": 20,
+      "maxLength": 2000
+    },
+    "category": {
+      "enum": [
+        "research",
+        "marketing",
+        "engineering",
+        "operations",
+        "other"
+      ]
+    },
+    "tags": {
+      "type": "array",
+      "maxItems": 8,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+        "maxLength": 32
+      }
+    },
+    "author": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "url": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https://"
+        }
+      }
+    },
+    "version": {
+      "type": "string",
+      "description": "Semantic version of this reviewed snapshot.",
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?$"
+    },
+    "license": {
+      "type": "string",
+      "description": "SPDX license expression supplied by the publisher.",
+      "minLength": 1,
+      "maxLength": 80,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9.+() -]*$"
+    },
+    "homepage": {
+      "type": "string",
+      "format": "uri",
+      "pattern": "^https://"
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repository",
+        "commit",
+        "path"
+      ],
+      "properties": {
+        "repository": {
+          "type": "string",
+          "description": "Creator-owned public GitHub repository.",
+          "pattern": "^https://github\\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+        },
+        "commit": {
+          "type": "string",
+          "description": "Full immutable Git commit SHA.",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "path": {
+          "type": "string",
+          "description": "Relative path to the config-only Buzz snapshot.",
+          "maxLength": 300,
+          "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\)[A-Za-z0-9._/-]+\\.agent\\.json$"
+        }
+      }
+    },
+    "snapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sha256",
+        "size_bytes"
+      ],
+      "properties": {
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "size_bytes": {
+          "type": "integer",
+          "minimum": 2,
+          "maximum": 2097152
+        }
+      }
+    },
+    "status": {
+      "enum": [
+        "approved",
+        "suspended"
+      ]
+    },
+    "published_at": {
+      "type": "string",
+      "format": "date"
+    }
+  }
+}

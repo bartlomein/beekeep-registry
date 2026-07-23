@@ -1,0 +1,25 @@
+schema_version: 1
+slug: alice/research-brief
+name: Research Brief
+summary: Produces a sourced one-page research brief from a focused question.
+description: >-
+  Researches a focused topic, distinguishes evidence from inference, and
+  delivers a concise brief with direct source links.
+category: research
+tags:
+  - research
+  - citations
+author:
+  name: Alice Example
+  url: https://github.com/alice
+version: 1.0.0
+license: MIT
+source:
+  repository: https://github.com/alice/buzz-agents
+  commit: 4b825dc642cb6eb9a060e54bf8d69288fbee4904
+  path: research-brief/research-brief.agent.json
+snapshot:
+  sha256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  size_bytes: 512
+status: approved
+published_at: 2026-07-23
