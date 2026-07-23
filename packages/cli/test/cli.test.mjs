@@ -10,7 +10,7 @@ import { parse, stringify } from "yaml";
 
 import {
   finalizeListing,
-  invokeBuzzImport,
+  openBuzzDesktop,
   openSubmissionPage,
   resolveApprovedAgent,
   run,
@@ -137,29 +137,61 @@ test("resolveApprovedAgent rejects suspended listings", async () => {
   );
 });
 
-test("invokeBuzzImport passes an argument array without shell interpolation", () => {
+test("openBuzzDesktop launches the installed macOS app without a shell", () => {
   let invocation;
-  const result = invokeBuzzImport("/tmp/name with spaces.agent.json", {
-    buzzCommand: "/custom/buzz",
+  const result = openBuzzDesktop({
+    platform: "darwin",
     spawnImpl(command, args, options) {
       invocation = { command, args, options };
       return {
         status: 0,
-        stdout: '{"ok":true,"opened":true}\n',
+        stdout: "",
         stderr: "",
       };
     },
   });
 
-  assert.equal(invocation.command, "/custom/buzz");
-  assert.deepEqual(invocation.args, [
-    "agents",
-    "import",
-    "--file",
-    "/tmp/name with spaces.agent.json",
-  ]);
+  assert.equal(invocation.command, "open");
+  assert.deepEqual(invocation.args, ["-a", "Buzz"]);
   assert.equal(invocation.options.encoding, "utf8");
   assert.equal(result.opened, true);
+});
+
+test("add verifies and caches the snapshot before opening Buzz", async (t) => {
+  const sha256 = createHash("sha256").update(snapshotBytes).digest("hex");
+  const listing = {
+    ...structuredClone(validDraft),
+    source: {
+      repository: "https://github.com/alice/agents",
+      commit: "a".repeat(40),
+      path: "test-agent.agent.json",
+    },
+    snapshot: {
+      sha256,
+      size_bytes: snapshotBytes.length,
+    },
+  };
+  let invocation;
+  const result = await run(["add", "alice/test-agent"], {
+    baseUrl: "https://registry.example/main",
+    fetchImpl: async (url) =>
+      String(url).endsWith("agents/alice/test-agent.yaml")
+        ? response(stringify(listing))
+        : response(snapshotBytes),
+    platform: "darwin",
+    spawnImpl(command, args) {
+      invocation = { command, args };
+      return { status: 0, stdout: "", stderr: "" };
+    },
+  });
+  t.after(() => rm(result.cachedFile, { force: true }));
+
+  assert.equal(invocation.command, "open");
+  assert.deepEqual(invocation.args, ["-a", "Buzz"]);
+  assert.equal(result.buzz.opened, true);
+  assert.equal(result.manualImportRequired, true);
+  assert.match(result.message, /Import agent snapshot/);
+  assert.deepEqual(await readFile(result.cachedFile), snapshotBytes);
 });
 
 test("openSubmissionPage passes the review URL without shell interpolation", () => {

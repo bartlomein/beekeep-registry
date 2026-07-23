@@ -48,13 +48,12 @@ Usage:
   beekeep submit <snapshot.agent.json> --listing <draft.yaml> [--registry <dir>]
 
 Commands:
-  add       Download and verify an approved listing, then open Buzz's import preview
+  add       Download and verify an approved listing, then open Buzz for import
   submit    Validate a committed snapshot and open a pre-filled review request
 
 Add options:
   --download-only              Verify and cache the snapshot without opening Buzz
   --registry-base-url <url>    Registry raw-content base URL
-  --buzz-command <path>        Buzz CLI executable (default: buzz)
 
 Submit options:
   --no-open                    Print the review URL without opening a browser
@@ -65,7 +64,6 @@ Submit options:
 
 Environment:
   BEEKEEP_REGISTRY_BASE_URL    Default registry raw-content base URL
-  BEEKEEP_BUZZ_COMMAND         Default Buzz CLI executable
 `;
 
 function fail(message) {
@@ -190,42 +188,28 @@ export async function cacheVerifiedSnapshot(slug, sha256, bytes) {
   return filePath;
 }
 
-export function invokeBuzzImport(
-  filePath,
-  {
-    buzzCommand = process.env.BEEKEEP_BUZZ_COMMAND ?? "buzz",
-    spawnImpl = spawnSync,
-  } = {},
+export function openBuzzDesktop(
+  { platform = process.platform, spawnImpl = spawnSync } = {},
 ) {
-  const result = spawnImpl(
-    buzzCommand,
-    ["agents", "import", "--file", filePath],
-    {
-      encoding: "utf8",
-      maxBuffer: 1024 * 1024,
-    },
-  );
-  if (result.error) {
-    fail(`could not run ${buzzCommand}: ${result.error.message}`);
+  const invocation =
+    platform === "darwin"
+      ? ["open", ["-a", "Buzz"]]
+      : platform === "win32"
+        ? ["cmd.exe", ["/d", "/s", "/c", "start", "", "Buzz"]]
+        : ["gtk-launch", ["xyz.block.buzz.app"]];
+  const result = spawnImpl(invocation[0], invocation[1], {
+    encoding: "utf8",
+    maxBuffer: 1024 * 1024,
+  });
+  if (result.error || result.status !== 0) {
+    return {
+      opened: false,
+      error:
+        result.error?.message ||
+        (result.stderr || result.stdout || "Buzz launch command failed").trim(),
+    };
   }
-  if (result.status !== 0) {
-    const detail = (result.stderr || result.stdout || "").trim();
-    fail(
-      `${buzzCommand} agents import failed with exit code ${result.status}${
-        detail ? `: ${detail}` : ""
-      }`,
-    );
-  }
-
-  const stdout = result.stdout.trim();
-  if (!stdout) {
-    return { opened: true };
-  }
-  try {
-    return JSON.parse(stdout);
-  } catch {
-    return { opened: true, output: stdout };
-  }
+  return { opened: true };
 }
 
 async function commandAdd(args, dependencies = {}) {
@@ -237,11 +221,7 @@ async function commandAdd(args, dependencies = {}) {
     fail("add requires exactly one publisher/agent slug");
   }
   for (const flag of flags.keys()) {
-    if (
-      !["--download-only", "--registry-base-url", "--buzz-command"].includes(
-        flag,
-      )
-    ) {
+    if (!["--download-only", "--registry-base-url"].includes(flag)) {
       fail(`unknown add option: ${flag}`);
     }
   }
@@ -263,12 +243,8 @@ async function commandAdd(args, dependencies = {}) {
   const downloadOnly = flags.has("--download-only");
   const buzz = downloadOnly
     ? null
-    : invokeBuzzImport(filePath, {
-        buzzCommand:
-          flags.get("--buzz-command") ??
-          dependencies.buzzCommand ??
-          process.env.BEEKEEP_BUZZ_COMMAND ??
-          "buzz",
+    : openBuzzDesktop({
+        platform: dependencies.platform ?? process.platform,
         spawnImpl: dependencies.spawnImpl ?? spawnSync,
       });
 
@@ -282,9 +258,12 @@ async function commandAdd(args, dependencies = {}) {
     cachedFile: filePath,
     buzz,
     importConfirmed: false,
+    manualImportRequired: !downloadOnly,
     message: downloadOnly
       ? "Verified snapshot downloaded. Buzz was not opened."
-      : "Verified snapshot sent to Buzz. Review the preview and confirm Import in the app.",
+      : buzz.opened
+        ? `Verified snapshot downloaded to ${filePath}. Buzz was opened. Choose New agent, then Import agent snapshot, and select this file.`
+        : `Verified snapshot downloaded to ${filePath}. Open Buzz, choose New agent, then Import agent snapshot, and select this file.`,
   };
 }
 

@@ -25,8 +25,9 @@ npx @beekeep-sh/cli submit ./my-agent.agent.json \
 ```
 
 `add` verifies the approved listing, pinned commit, byte size, SHA-256, JSON,
-and Beekeep safety policy before asking Buzz Desktop to show its normal import
-preview. Buzz creates nothing until the user confirms **Import**.
+and Beekeep safety policy before opening Buzz Desktop and printing the exact
+local file path. In Buzz, choose **New agent**, then **Import agent snapshot**,
+and select that file. Buzz creates nothing until the user confirms **Import**.
 
 In advanced mode, `submit` fills the immutable source and snapshot fields from
 the creator repository, validates the remote pinned file, and writes the
