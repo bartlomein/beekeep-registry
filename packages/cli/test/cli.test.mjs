@@ -159,6 +159,7 @@ test("add verifies and caches the snapshot without opening Buzz", async (t) => {
     },
   };
   let spawnCalled = false;
+  let analyticsRequest;
   const result = await run(["add", "alice/test-agent"], {
     baseUrl: "https://registry.example/main",
     fetchImpl: async (url) =>
@@ -170,14 +171,28 @@ test("add verifies and caches the snapshot without opening Buzz", async (t) => {
       spawnCalled = true;
       return { status: 0, stdout: "", stderr: "" };
     },
+    analyticsFetchImpl: async (url, options) => {
+      analyticsRequest = { url: String(url), options };
+      return response(JSON.stringify({ accepted: true }), 202);
+    },
   });
   t.after(() => rm(result.cachedFile, { force: true }));
 
   assert.equal(spawnCalled, false);
   assert.equal(result.buzz, undefined);
   assert.equal(result.manualImportRequired, true);
+  assert.equal(result.analytics.status, "accepted");
   assert.match(result.message, /numbered steps/);
   assert.deepEqual(await readFile(result.cachedFile), snapshotBytes);
+  assert.equal(
+    analyticsRequest.url,
+    "https://beekeep.sh/api/downloads",
+  );
+  assert.deepEqual(JSON.parse(analyticsRequest.options.body), {
+    slug: "alice/test-agent",
+    version: "1.0.0",
+    source: "cli",
+  });
 
   const humanOutput = formatCliResult(result, { platform: "darwin" });
   assert.match(
@@ -192,6 +207,73 @@ test("add verifies and caches the snapshot without opening Buzz", async (t) => {
 
   const jsonOutput = formatCliResult(result, { json: true });
   assert.deepEqual(JSON.parse(jsonOutput), result);
+});
+
+test("add succeeds when anonymous download reporting fails", async (t) => {
+  const sha256 = createHash("sha256").update(snapshotBytes).digest("hex");
+  const listing = {
+    ...structuredClone(validDraft),
+    source: {
+      repository: "https://github.com/alice/agents",
+      commit: "a".repeat(40),
+      path: "test-agent.agent.json",
+    },
+    snapshot: {
+      sha256,
+      size_bytes: snapshotBytes.length,
+    },
+  };
+  const result = await run(["add", "alice/test-agent"], {
+    baseUrl: "https://registry.example/main",
+    fetchImpl: async (url) =>
+      String(url).endsWith("agents/alice/test-agent.yaml")
+        ? response(stringify(listing))
+        : response(snapshotBytes),
+    analyticsFetchImpl: async () => {
+      throw new Error("analytics unavailable");
+    },
+  });
+  t.after(() => rm(result.cachedFile, { force: true }));
+
+  assert.equal(result.ok, true);
+  assert.equal(result.analytics.status, "failed");
+  assert.deepEqual(await readFile(result.cachedFile), snapshotBytes);
+});
+
+test("add respects the explicit analytics opt-out", async (t) => {
+  const sha256 = createHash("sha256").update(snapshotBytes).digest("hex");
+  const listing = {
+    ...structuredClone(validDraft),
+    source: {
+      repository: "https://github.com/alice/agents",
+      commit: "a".repeat(40),
+      path: "test-agent.agent.json",
+    },
+    snapshot: {
+      sha256,
+      size_bytes: snapshotBytes.length,
+    },
+  };
+  let analyticsCalled = false;
+  const result = await run(
+    ["add", "alice/test-agent", "--no-analytics"],
+    {
+      baseUrl: "https://registry.example/main",
+      fetchImpl: async (url) =>
+        String(url).endsWith("agents/alice/test-agent.yaml")
+          ? response(stringify(listing))
+          : response(snapshotBytes),
+      analyticsFetchImpl: async () => {
+        analyticsCalled = true;
+        return response("", 202);
+      },
+    },
+  );
+  t.after(() => rm(result.cachedFile, { force: true }));
+
+  assert.equal(result.ok, true);
+  assert.equal(result.analytics.status, "disabled");
+  assert.equal(analyticsCalled, false);
 });
 
 test("openSubmissionPage passes the review URL without shell interpolation", () => {
@@ -391,5 +473,5 @@ test("built CLI runs through an npm-style bin symlink", async (t) => {
 
   const result = spawnSync(executable, ["--version"], { encoding: "utf8" });
   assert.equal(result.status, 0, result.stderr);
-  assert.equal(result.stdout.trim(), "0.1.2");
+  assert.equal(result.stdout.trim(), "0.1.3");
 });

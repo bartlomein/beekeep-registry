@@ -29,6 +29,7 @@ export const DEFAULT_REGISTRY_BASE_URL =
   "https://raw.githubusercontent.com/bartlomein/beekeep-registry/main";
 export const DEFAULT_SUBMISSION_URL =
   "https://github.com/bartlomein/beekeep-registry/issues/new";
+export const DEFAULT_ANALYTICS_URL = "https://beekeep.sh/api/downloads";
 
 const CATEGORIES = [
   "research",
@@ -44,7 +45,7 @@ const LICENSE_PATTERN = /^[A-Za-z0-9][A-Za-z0-9.+() -]*$/;
 const HELP = `beekeep — submit and install reviewed Buzz agents
 
 Usage:
-  beekeep add <publisher/agent> [--json] [--download-only]
+  beekeep add <publisher/agent> [--json] [--download-only] [--no-analytics]
   beekeep submit <snapshot.agent.json>
   beekeep submit <snapshot.agent.json> --listing <draft.yaml> [--registry <dir>]
 
@@ -55,6 +56,7 @@ Commands:
 Add options:
   --json                       Print machine-readable JSON instead of import steps
   --download-only              Verify and cache without printing import steps
+  --no-analytics               Do not count this anonymous verified download
   --registry-base-url <url>    Registry raw-content base URL
 
 Submit options:
@@ -66,6 +68,8 @@ Submit options:
 
 Environment:
   BEEKEEP_REGISTRY_BASE_URL    Default registry raw-content base URL
+  BEEKEEP_DISABLE_ANALYTICS    Set to 1 or true to disable download counting
+  DO_NOT_TRACK                 Set to 1 to disable download counting
 `;
 
 function fail(message) {
@@ -193,13 +197,20 @@ export async function cacheVerifiedSnapshot(slug, sha256, bytes) {
 async function commandAdd(args, dependencies = {}) {
   const { positionals, flags } = parseFlags(
     args,
-    new Set(["--download-only", "--json"]),
+    new Set(["--download-only", "--json", "--no-analytics"]),
   );
   if (positionals.length !== 1) {
     fail("add requires exactly one publisher/agent slug");
   }
   for (const flag of flags.keys()) {
-    if (!["--download-only", "--json", "--registry-base-url"].includes(flag)) {
+    if (
+      ![
+        "--download-only",
+        "--json",
+        "--no-analytics",
+        "--registry-base-url",
+      ].includes(flag)
+    ) {
       fail(`unknown add option: ${flag}`);
     }
   }
@@ -219,6 +230,26 @@ async function commandAdd(args, dependencies = {}) {
     resolved.bytes,
   );
   const downloadOnly = flags.has("--download-only");
+  const analytics = await reportDownloadEvent(
+    {
+      slug,
+      version: resolved.listing.version,
+    },
+    {
+      disabled: analyticsOptedOut(
+        flags.has("--no-analytics"),
+        dependencies.env ?? process.env,
+      ),
+      fetchImpl:
+        dependencies.analyticsFetchImpl ??
+        dependencies.fetchImpl ??
+        globalThis.fetch,
+      url:
+        dependencies.analyticsUrl ??
+        process.env.BEEKEEP_ANALYTICS_URL ??
+        DEFAULT_ANALYTICS_URL,
+    },
+  );
 
   return {
     ok: true,
@@ -230,10 +261,67 @@ async function commandAdd(args, dependencies = {}) {
     cachedFile: filePath,
     importConfirmed: false,
     manualImportRequired: !downloadOnly,
+    analytics,
     message: downloadOnly
       ? "Verified snapshot downloaded."
       : "Verified snapshot downloaded. Follow the numbered steps to import it into Buzz.",
   };
+}
+
+function analyticsOptedOut(flagDisabled, env) {
+  if (flagDisabled || env.DO_NOT_TRACK === "1") {
+    return true;
+  }
+  return ["1", "true"].includes(
+    String(env.BEEKEEP_DISABLE_ANALYTICS ?? "").toLowerCase(),
+  );
+}
+
+function normalizeAnalyticsUrl(value) {
+  let parsed;
+  try {
+    parsed = new URL(value);
+  } catch {
+    return null;
+  }
+  return ["http:", "https:"].includes(parsed.protocol)
+    ? parsed.toString()
+    : null;
+}
+
+export async function reportDownloadEvent(
+  { slug, version },
+  {
+    disabled = false,
+    fetchImpl = globalThis.fetch,
+    url = DEFAULT_ANALYTICS_URL,
+  } = {},
+) {
+  if (disabled) {
+    return { status: "disabled" };
+  }
+
+  const analyticsUrl = normalizeAnalyticsUrl(url);
+  if (!analyticsUrl) {
+    return { status: "failed" };
+  }
+
+  try {
+    const response = await fetchImpl(analyticsUrl, {
+      method: "POST",
+      headers: {
+        accept: "application/json",
+        "content-type": "application/json",
+        "user-agent": "beekeep-cli/0.1",
+      },
+      body: JSON.stringify({ slug, version, source: "cli" }),
+      redirect: "error",
+      signal: AbortSignal.timeout(1_500),
+    });
+    return { status: response.ok ? "accepted" : "failed" };
+  } catch {
+    return { status: "failed" };
+  }
 }
 
 function runGit(directory, args, { binary = false } = {}) {
@@ -708,7 +796,7 @@ export async function run(argv = process.argv.slice(2), dependencies = {}) {
     return { help: HELP };
   }
   if (["--version", "-V"].includes(command)) {
-    return { text: "0.1.2" };
+    return { text: "0.1.3" };
   }
   if (command === "add") {
     return commandAdd(args, dependencies);
