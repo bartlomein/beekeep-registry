@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { readdir } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 
 import Ajv2020 from "ajv/dist/2020.js";
@@ -60,7 +60,12 @@ const secretValuePatterns = [
 ];
 
 function normalizeKey(key) {
-  return key.toLowerCase().replaceAll("-", "_").replaceAll(" ", "_");
+  return key
+    .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
+    .replace(/([A-Z]+)([A-Z][a-z])/g, "$1_$2")
+    .toLowerCase()
+    .replaceAll("-", "_")
+    .replaceAll(" ", "_");
 }
 
 function isPlainObject(value) {

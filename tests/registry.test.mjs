@@ -10,6 +10,7 @@ import {
   assertListingPath,
   expectedListingPath,
   inspectSnapshot,
+  loadListingFile,
   parseListingYaml,
   rawSnapshotUrl,
   validateRemoteSnapshot,
@@ -33,6 +34,14 @@ test("example listing matches the strict v1 schema", () => {
     expectedListingPath(validListing.slug),
     path.join("agents", "alice", "research-brief.yaml"),
   );
+});
+
+test("listing files load from disk", async () => {
+  const listing = await loadListingFile(
+    path.join(repositoryRoot, "examples", "research-brief.yaml"),
+  );
+
+  assert.equal(listing.slug, "alice/research-brief");
 });
 
 test("listing schema rejects unknown fields", () => {
@@ -108,6 +117,43 @@ test("config-only snapshot passes policy inspection", () => {
   assert.equal(report.prompt.characters, 32);
   assert.deepEqual(report.tools, ["web-search"]);
   assert.deepEqual(report.skills, ["research"]);
+});
+
+test("Buzz camelCase snapshot fields are inspected", () => {
+  const report = inspectSnapshot({
+    definition: {
+      displayName: "Honey Passer",
+      systemPrompt: "I pass the honey.",
+    },
+    memory: {
+      level: "none",
+    },
+  });
+
+  assert.equal(report.display_name, "Honey Passer");
+  assert.equal(report.prompt.characters, 17);
+
+  assert.throws(
+    () =>
+      inspectSnapshot({
+        definition: {
+          privateKey: "not-empty",
+        },
+      }),
+    /contains secret material/,
+  );
+
+  assert.throws(
+    () =>
+      inspectSnapshot({
+        definition: {
+          envVars: {
+            API_TOKEN: "not-empty",
+          },
+        },
+      }),
+    /contains environment values/,
+  );
 });
 
 test("snapshot policy rejects included memory", () => {
